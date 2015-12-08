@@ -11,8 +11,8 @@
 		</tr>
 		<tr>
 			<td>1</td>
-			<td>测试</td>
-			<td></td>
+			<td>脚本文件</td>
+			<td>Script</td>
 		</tr>
 		<tr>
 			<td>2</td>
