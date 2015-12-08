@@ -1,2 +1,2 @@
 #!/bin/sh
-find . -type d -iname ".svn" -exec rm -rf {} /;
+find . -type d -name ".svn"|xargs rm -rf
