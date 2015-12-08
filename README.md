@@ -16,7 +16,7 @@
 		</tr>
 		<tr>
 			<td>2</td>
-			<td>测试2</td>
+			<td>测试</td>
 			<td></td>
 		</tr>
 	</tr>
