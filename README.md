@@ -19,6 +19,12 @@
 			<td>日志文件</td>
 			<td>zlog-1.2.12</td>
 		</tr>
+		<tr>
+			<td>3</td>
+			<td>样品</td>
+			<td>sample</td>
+		</tr>
+
 	</tr>
 </table>
 
