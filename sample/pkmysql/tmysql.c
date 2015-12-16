@@ -166,19 +166,17 @@ MYSQL connectionMysql(){
 #define DBPORT   3306
 
     MYSQL my_connection;
-	int retcode = 0;
 	mysql_init( &my_connection );
-    if( retcode = mysql_real_connect(&my_connection, IPADDRESS, USERNAME, PASSWORD, DBNAME, DBPORT, NULL, 0 ) ){
+    if( mysql_real_connect(&my_connection, IPADDRESS, USERNAME, PASSWORD, DBNAME, DBPORT, NULL, 0 ) ){
 		info( "连接MYSQL 数据库成功!" );        
 		return my_connection;
     }
 
-    warn( "(%d) 连接数据库失败!", retcode );
+    warn( "连接数据库失败!" );
     return my_connection;   
 }
 
 
-    
 int queryResultsMysql( MYSQL_RES *result,  HORIZONTAL_DETAILS_LIST ** gdata ){     
 	if( NULL == result ){
 		warn( "未查询到相关记录信息" );
