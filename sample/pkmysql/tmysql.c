@@ -301,7 +301,7 @@ int insert_update_del_Mysql( char * querystatement ){
     return 0;
 }
 
-
+#ifdef TEST_MAIN
 int main( int argc , char *argv[]){
 
 	//insert_update_del_Mysql( "insert into employeeInformation_t value( 4, 'Lion' )" );    
@@ -325,7 +325,7 @@ int main( int argc , char *argv[]){
     }
 
     debug( "    ]\n" );
-    free_horizontal_details_list( &hpdata );
-    
+    free_horizontal_details_list( &hpdata );    
     return 0;
 }
+#endif
