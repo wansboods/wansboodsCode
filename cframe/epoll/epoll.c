@@ -40,7 +40,7 @@
 //int handle( int connfd );
 int setnonblocking( int sockfd );
 int deal_data_from_mbarsys_msg_channel( int connfd, char * ipaddr );
-int deal_mbarsys_message_event( int sock, char *ippadr, int type, char * message, int length, void ** msgdata, int * msglen );
+//int deal_mbarsys_message_event( int sock, char *ippadr, int type, char * message, int length, void ** msgdata, int * msglen );
 
 
 #define MAX_EPOOL_MSG_RECEIVE_TIMEOUT 2
@@ -244,8 +244,5 @@ int deal_data_from_mbarsys_msg_channel( int connfd, char * ipaddr ) {
 #endif
 }
 
-int deal_mbarsys_message_event( int sock, char * ippadr, int type, char * message, int length, void ** msgdata, int * msglen ){
-	//消息处理类型
-    return 0;
-}
+
 

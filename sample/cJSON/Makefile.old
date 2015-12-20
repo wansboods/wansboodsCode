@@ -1,10 +1,6 @@
 CC := gcc
-
-DFLAGS := -shared
-CFLAGS := -Wall -fPIC
-CFLAGS += -I.
+CFLAGS := -I.
 LDFLAGS := -lm
-
 #SRCDIRS := $(shell ls -l | grep "^d" | awk {'print $8'} )
 SRCDIRS := $(shell ls | grep -v Makefile )
 
@@ -17,24 +13,12 @@ INCS := $(wildcard *.h)
 INCS += $(foreach dir, $(SRCDIRS), $(wildcard $(dir)/*.h))
 
 #SLIB_OBJS += $(THIRDPARTY_TOPDIR)/library/libmopenssl.a
-TARGET_LIBRARY=build/library
-TARGET_INCLUDE=build/include
-
-OBJ_LIB_DIR=.libs
-TARGET=${OBJ_LIB_DIR}/libcjason.so
-
+TARGET=tcjason
 %.o: %.c
 	@echo "Compile $@"
 	${CC} ${CFLAGS} -c -o $@ $<
-
 all: ${TARGET}
 ${TARGET}: ${OBJS}
-	@echo "COMPILE $@"
-	@mkdir -p $(OBJ_LIB_DIR)
-	@${CC} ${DFLAGS} ${LDFLAGS} -o $@ ${OBJS}
-	@echo "INSTALL ${TARGET}"
-	@mkdir -p ${TARGET_LIBRARY};cp ${TARGET} ${TARGET_LIBRARY} -afr
-	@echo "INSTALL ${INCS}"
-	@mkdir -p ${TARGET_INCLUDE};cp ${INCS} ${TARGET_INCLUDE} -afr
-clean:
+	${CC} $(OBJS) ${LDFLAGS} -o $@
+clean:	
 	@rm -fr ${TARGET} ${OBJS}
