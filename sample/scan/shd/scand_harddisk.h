@@ -57,11 +57,13 @@ typedef struct{
     unsigned long long int totalsize;
 
 	void * list;                   //存储点
+
     char * devname;              //分区设备名
-    char * devfile;               //分区设备路径
+    char * devfile;               //分区设备路径    
+    char * mountpoint;            //挂载点
+
     char * hddevname;            //硬盘设备名
     char * hddevfile;              //硬盘设备路径
-    char * mountpoint;            //挂载点
     
     void * next;
 }SCAND_PARTITION_INFO_LIST;
@@ -96,8 +98,6 @@ int get_source_info_from_harddisk( char *mountp, SCAND_HARDDISK_STYLE *sourceSta
 int get_partitions_info_from_harddisk( char * blockpath, SCAND_PARTITION_INFO_LIST ** list );
 int get_partition_filesystem_info_from_harddisk( char * mountp, unsigned long long int * usedsize, unsigned long long int * availsize, unsigned long long int * freesize );
 int get_serialno_file_from_harddisk( char * mountp, char *serialno, int length );
-
-
 
 
 #endif //__SCAND_HARDDISK_H_

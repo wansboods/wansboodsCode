@@ -33,9 +33,6 @@
 #include "scand_harddisk.h"
 
 
-
-
-
 #define SCAND_SYSTEM_BLOCK_DEVICE "/sys/block"
 #define SCAND_MOUNT_RESULT_FILE "/tmp/mntresult"
 
@@ -87,11 +84,15 @@ int scsi_inquiry_unit_serial_number( int fd, char * serialno, int length );
 int fill_harddisk_info( char *, char *, char *, unsigned long long int , SCAND_STORAGE_MEDIUM , SCAND_HD_INFO_LIST * );
 int fill_partition_info( int, char *, char *, char *,char *, SCAND_MOUNT_STATUS, SCAND_HARDDISK_STYLE, char *, SCAND_PARTITION_FS, unsigned long long int, unsigned long long int, unsigned long long int,unsigned long long int, SCAND_PARTITION_INFO_LIST * );
 	
+int complete_harddisk_information( SCAND_HD_INFO_LIST * hd );
+int loading_partitions_info_from_harddisk( char * devname, char *hdserialno, SCAND_MOUNT_STATUS *mstatus, SCAND_PARTITION_INFO_LIST ** list  );
 
 int mountDefault( SCAND_HARDDISK_MOUNT_MODE mode, char * devfile, char *mountpoint );
 int mountNTFS( SCAND_HARDDISK_MOUNT_MODE mode, char * devfile, char *mountpoint );
 int mountExt4( SCAND_HARDDISK_MOUNT_MODE mode, char * devfile, char *mountpoint );
 int mountExt3( SCAND_HARDDISK_MOUNT_MODE mode, char * devfile, char *mountpoint );
+
+int get_hdserialno( const char* devfile, char* serialno, int length );
 
 
 static SCAND_HD_INFO_LIST * s_hd_list = NULL;
@@ -102,6 +103,66 @@ static SCAND_HD_INFO_LIST * s_hd_list = NULL;
 #endif
 
 
+char * show_SCAND_HARDDISK_STYLE( int style ){
+    switch( style ){
+		case EM_SOURCE_HD:
+            return( "原盘" );
+        case EM_TARGET_HD:
+			return "目标盘";
+    }
+
+   	return "未知";
+}
+
+char * show_SCAND_MOUNT_STATUS( int status ){
+	switch( status ){
+		case EM_UNMOUNT:
+            return "未挂载";
+        case EM_MOUNTED:
+            return "已挂载";
+    }
+
+    return "未知 ";
+}
+
+
+void show_hd_list(){
+	SCAND_HD_INFO_LIST * plist = s_hd_list;
+    while( plist ){
+		info( "================================\n" );
+    	info( "设备路径:%s\n", plist->devfile );
+    	info( "设备点:%s\n", plist->devname );
+    	info( "硬盘序列号:%s\n", plist->serialno );
+		info( "硬盘容量:%llu\n", plist->totalsize );
+	    info( "硬盘屏蔽位:%d\n", plist->maskbit );
+		info( "存储介质:%d\n", plist->medium );
+    	info( "硬盘挂载情况:%d->(%s)\n", plist->mstatus, show_SCAND_MOUNT_STATUS(plist->mstatus) );        
+	    SCAND_PARTITION_INFO_LIST * partlist = plist->partlist;
+        while( partlist ){
+			info( "\t---------\n" );
+			info( "\t分区号:%d\n", partlist->index );
+			info( "\t分区类型:%d->(%s)\n", partlist->style, show_SCAND_HARDDISK_STYLE( partlist->style ) );
+			info( "\t分区挂载情况:%d->(%s)\n", partlist->mstatus, show_SCAND_MOUNT_STATUS( partlist->mstatus ) );
+			info( "\t分区设备名:%s\n", partlist->devname );
+			info( "\t分区设备路径:%s\n", partlist->devfile );
+			info( "\t分区挂载点:%s\n",  partlist->mountpoint );            
+            info( "\t分区使用空间:%llu\n", partlist->usedsize  );
+            info( "\t分区实际使用空间:%llu\n", partlist->availsize  );
+            info( "\t分区可用空间:%llu\n", partlist->freesize  );
+            info( "\t分区总空间:%llu\n", partlist->totalsize  );
+
+            info( "\t硬盘设备名:%s\n",  partlist->hddevname );
+			info( "\t硬盘设备路径:%s\n",  partlist->hddevfile );
+
+			info( "\t----- end ----\n\n" );		
+			
+			partlist = partlist->next;
+        }
+
+        info( "==============end==================\n\n" );        
+        plist = plist->next;
+    }
+}
 
 int filter_device( char * devname ){    
     if( *devname != 's' ){
@@ -115,27 +176,25 @@ int loading_hard_disk_list( DIR * sock_dir, SCAND_HD_INFO_LIST ** list ){
 
     int retcode = 0;    
     char devfile[1024] =  { '\0' };
-    char serialno[128] =  { '\0' };
     char devicepath[2048] = { '\0' };
 
     SCAND_HD_INFO_LIST * scand_hd_node = NULL;    
     struct dirent * ptr = NULL;
-    while( ( ptr = readdir( sock_dir ) ) ){        
-        if( ptr->d_name ){            
-            if( 0 == filter_device( ptr->d_name ) ){                
+    while( ( ptr = readdir( sock_dir ) ) ){
+        if( ptr->d_name ){
+            if( 0 == filter_device( ptr->d_name ) ){
                 sprintf( devicepath, "%s/%s", SCAND_SYSTEM_BLOCK_DEVICE, ptr->d_name );
                 struct stat status;
-                if( lstat( devicepath, &status ) == 0 ){                    
-                    sprintf( devfile, "/dev/%s", ptr->d_name ); 
-					info( "设备名:%s\n", devfile );
+                if( lstat( devicepath, &status ) == 0 ){
+                    sprintf( devfile, "/dev/%s", ptr->d_name );
+                    char serialno[128] =  { '\0' };
 					//获取硬盘序列号
 					retcode = get_serialno_from_harddisk( devfile, serialno, sizeof( serialno ) );
 					if( 0 > retcode ){
 						warn( "( %d ) 获取硬盘序列号出错!\n", retcode );
-                        continue;
+                        //continue;
                     }				
 
-                    info( "获取设备号:%s\n", serialno );
 					unsigned long long int totalsize = 0;
 					//获取硬盘大小
 					retcode = get_total_size_from_harddisk( devfile, &totalsize );
@@ -150,16 +209,18 @@ int loading_hard_disk_list( DIR * sock_dir, SCAND_HD_INFO_LIST ** list ){
                         continue;
                     }
 
+                    add_node_into_hdinfo_list( list, node );
                     retcode = fill_harddisk_info( ptr->d_name, devfile, serialno, totalsize, EM_STORAGE_HD, node );
                     if( retcode != 0 ){
 						warn( "注入数据值harddisk info 失败!\n" );
                     }
                     
-                    add_node_into_hdinfo_list( list, node );                    
                     retcode = complete_harddisk_information( node );
                     if( retcode != 0 ){
 
-                    }                        
+                    }
+
+                    
                 }
             }
         }
@@ -188,6 +249,10 @@ int start_loading_hard_disk_list( ){
 
     loading_hard_disk_list( dir, &s_hd_list );    
     closedir( dir );
+
+
+
+    show_hd_list();
     return 0;
 }
 
@@ -242,6 +307,35 @@ char * remove_redundant_characters( char * string, char character ){
 }
 
 int get_serialno_from_harddisk( char * devfile, char * serialno, int length ){
+	if( NULL == devfile ){
+		warn( "传入值出错!\n" );
+        return -1;
+    }
+
+    char hd_serialno[ 128 ] = { '\0' };
+    int retcode = get_hdserialno( devfile, hd_serialno, sizeof( hd_serialno ) );
+    if( retcode != 0 ){
+		warn( "获取硬盘序列号出错!\n" );
+		return -1;
+    }
+
+    char * removeSerialno = remove_redundant_characters( hd_serialno, ' ' );
+    //info( ">>>>removeSerialno:%s\n ", removeSerialno );
+    if( NULL == removeSerialno ){
+		warn( "去除多余字符出错!\n" );
+        return -1;
+    }
+
+    if( length < strlen( removeSerialno ) + 1 ){
+		warn( "存入数据值大小出错!\n" );
+        return -1;
+    }
+    
+    memcpy( serialno, removeSerialno, strlen( removeSerialno ) + 1 );
+    //info( ">>>>removeSerialno:%s\n ", removeSerialno );
+
+    
+#if 0    
     
     int sock;
     if( ( sock = open( devfile, O_RDONLY | O_NONBLOCK ) ) < 0 )
@@ -252,6 +346,7 @@ int get_serialno_from_harddisk( char * devfile, char * serialno, int length ){
 
     int retcode = 0;
     char hd_serialno[ 128 ] = { '\0' };
+        
 	if( 0 > ( retcode = save_serialno_from_harddisk( sock, serialno, length ) ) ){
 		warn( "(%d) 保存硬盘序列号出错!", retcode );
 	    close( sock );
@@ -271,6 +366,8 @@ int get_serialno_from_harddisk( char * devfile, char * serialno, int length ){
     }
     
     memcpy( serialno, removeSerialno, strlen( removeSerialno ) + 1 );
+#endif
+
     return 0;
 }
     
@@ -427,9 +524,9 @@ int complete_harddisk_information( SCAND_HD_INFO_LIST * hd ){
 
 	int retcode = 0;
 	SCAND_PARTITION_INFO_LIST * partition_list = NULL;
-    retcode = loading_partitions_info_from_harddisk( hd->devname, hd->serialno, &partition_list  );
-	if( retcode == 0 ){
-		warn( "获取分区列表信息出错!\n" );
+    retcode = loading_partitions_info_from_harddisk( hd->devname, hd->serialno, &hd->mstatus, &partition_list  );
+	if( retcode != 0 ){
+		warn( "获取分区( %s )列表信息出错!\n", hd->devname );
         return -1;
     }
 
@@ -450,12 +547,12 @@ int complete_harddisk_information( SCAND_HD_INFO_LIST * hd ){
 
 #ifdef MUTEX
 	thread_mutex_unlock( &mutex );
-#endif 
-	    
+#endif
+
     return 0;    
 }
 
-int loading_partitions_list( DIR * sockdir, char *blockpath, char *devname, char *ghdserialno, SCAND_PARTITION_INFO_LIST ** list ){
+int loading_partitions_list( DIR * sockdir, char *blockpath, char *devname, char *ghdserialno, SCAND_MOUNT_STATUS * mstatus, SCAND_PARTITION_INFO_LIST ** list ){
 	if( NULL == devname ){
 		warn( "设备名传入出错!\n" );
 		return -1;
@@ -467,7 +564,7 @@ int loading_partitions_list( DIR * sockdir, char *blockpath, char *devname, char
     while( ( ptr = readdir( sockdir ) ) ){        
         if( ptr->d_name ){
             if( 0 != scand_safe_memcmp( devname, ptr->d_name, strlen( devname ) ) ){
-                warn( "设备名(%s) (%s) 不匹配,跳过..\n", ptr->d_name, devname );
+                //warn( "设备名(%s) (%s) 不匹配,跳过..\n", ptr->d_name, devname );
 				continue;
             }else{
 				warn( "设备名(%s) (%s)  匹配, 进行解析\n", ptr->d_name, devname );	
@@ -496,14 +593,12 @@ int loading_partitions_list( DIR * sockdir, char *blockpath, char *devname, char
                 continue;
             }
 
-            info( "当前分区号:%d\n", index );
 
             //获取分区设备文件,设备号
 			sprintf( devfile, "/dev/%s", ptr->d_name );                
             sprintf( hddevfile, "/dev/%s", devname );
 
-            info( "分区设备名:%s\n", devfile );
-            info( "硬盘设备名:%s\n", hddevfile );
+
             
 			//获取分区文件系统格式
 			int gfsfmt = 0;
@@ -514,7 +609,6 @@ int loading_partitions_list( DIR * sockdir, char *blockpath, char *devname, char
             }
             
             fsfmt = gfsfmt;
-            info( "当前分区文件系统%d\n", fsfmt );
             
             //获取分区总大小
 			retcode = get_partition_totalsize_from_harddisk( hddevfile, index, &totalsize );
@@ -522,13 +616,11 @@ int loading_partitions_list( DIR * sockdir, char *blockpath, char *devname, char
 				warn( "(%d) 获取分区总容量失败(%s)(%d)\n ", retcode, hddevfile, index );
                 //continue;
             }
-
-            info( "当前分区总大小%llu\n", totalsize );
             
             //获取分区挂载状态和挂载点
 			retcode = get_partition_mountinfo_from_harddisk( devfile, mountpoint, sizeof( mountpoint ) );
-			if( 0 != retcode ){
-                info( "分区处于为挂载状态\n" );
+            if( 0 != retcode ){
+                info( "分区(%s)处于为挂载状态\n", devfile );
 				memset( local_mount_dir, 0, sizeof( local_mount_dir ) );
                 //硬盘处于未挂载,程序自动进行挂载硬盘
 #ifdef MOUNTED_HDIDSK
@@ -550,6 +642,7 @@ int loading_partitions_list( DIR * sockdir, char *blockpath, char *devname, char
                     if( retcode != 0 ){
 						warn( "获取硬盘类型出错!\n" );
                     }
+
 	#ifdef SOURCE_HD_READ_MOUNT
                     retcode = scand_unmount_partition_from_harddisk( local_mount_dir );
                     if( retcode != 0 ){
@@ -579,6 +672,12 @@ int loading_partitions_list( DIR * sockdir, char *blockpath, char *devname, char
 #endif                
             }else{
 				mountstatus = EM_MOUNTED;
+                *mstatus = EM_MOUNTED;
+				retcode = get_source_info_from_harddisk( local_mount_dir, &sourceStatus );
+                if( retcode != 0 ){
+					warn( "获取硬盘类型出错!\n" );
+                }
+                    
             }
 
 			if( EM_MOUNTED == mountstatus ){
@@ -590,26 +689,44 @@ int loading_partitions_list( DIR * sockdir, char *blockpath, char *devname, char
 					usedsize = totalsize - freesize;
                 }
 
-                //获取硬盘分区下的影片信息				
-				
+	            //info( ">>>> 当前分区号:%d\n", index );
+	            //info( ">>>> 分区设备名:%s\n", devfile );
+	            //info( ">>>> 硬盘设备名:%s\n", hddevfile );            
+	            //info( ">>>> 分区文件系统%d\n", fsfmt );
+	            //info( ">>>> totalsize:%llu \n", totalsize );
+	            //info( ">>>> usedsize :%llu \n", usedsize );
+	            //info( ">>>> freesize:%llu \n", freesize );
+	            //info( ">>>> availsize:%llu \n", availsize );
+            				
                 //查找特殊文件 hdsn.txt 
                 retcode = get_serialno_file_from_harddisk( mountpoint, hdserialno, sizeof( hdserialno ) );
                 if( 0 != retcode ){
 					warn( "分区下(%s) 未发现有hdsn.txt  文件\n", mountpoint );
                 }else{
-                	info( "分区下(%s) 存在hdsn.txt 硬盘sn 改名为: %s\n", mountpoint, hdserialno );
+                	info( "分区下(%s) 存在hdsn.txt , 硬盘sn 改名为: %s\n", mountpoint, hdserialno );
 #ifdef MUTEX
 	pthread_mutex_lock( &mutex );
 #endif                    
                     if( ghdserialno ){
 						scand_safe_free( ghdserialno );
                     }
-                    
-					ghdserialno = scand_safestrdup( hdserialno );  
+
+                    if( hdserialno ){
+						ghdserialno = scand_safestrdup( hdserialno );  
+                    }
 #ifdef MUTEX
 	pthread_mutex_unlock( &mutex );
 #endif                    
-                }                
+                }    
+
+				SCAND_MOVIE_INFORMATION_LIST * movlist = NULL;
+                //获取硬盘分区下的影片信息				
+				retcode = read_movie_file_from_mbar_hddisk( sourceStatus, mountpoint, &movlist );
+                if( retcode != 0 ){
+					warn( "获取硬盘分区下的影片信息失败! " );
+                }
+
+                
             }
 
             SCAND_PARTITION_INFO_LIST * partition_node = create_partition_information_node();
@@ -618,7 +735,7 @@ int loading_partitions_list( DIR * sockdir, char *blockpath, char *devname, char
                 continue;
             }
 
-            add_node_into_partition_list( list, partition_node );            
+            add_node_into_partition_list( list, partition_node );
 			retcode = fill_partition_info( index, ptr->d_name, devfile, devname, hddevfile 
                 ,mountstatus, sourceStatus, mountpoint, fsfmt, totalsize, usedsize, availsize,
                 freesize, partition_node );
@@ -633,7 +750,7 @@ int loading_partitions_list( DIR * sockdir, char *blockpath, char *devname, char
     return 0;
 }
     
-int loading_partitions_info_from_harddisk( char * devname, char *hdserialno, SCAND_PARTITION_INFO_LIST ** list  ){
+int loading_partitions_info_from_harddisk( char * devname, char *hdserialno, SCAND_MOUNT_STATUS * mstatus, SCAND_PARTITION_INFO_LIST ** list  ){
     char blockpath[ 1024 ] = { '\0' };
     sprintf( blockpath, "%s/%s", "/sys/block", devname );
  
@@ -643,7 +760,7 @@ int loading_partitions_info_from_harddisk( char * devname, char *hdserialno, SCA
         return -1;
     }
 
-    loading_partitions_list( sockdir, blockpath, devname, hdserialno, list );
+    loading_partitions_list( sockdir, blockpath, devname, hdserialno, mstatus, list );
     closedir( sockdir );
     return 0;
 }
@@ -777,9 +894,10 @@ int get_partition_mountinfo_from_harddisk( char * devfile, char * mountpoint, in
 		char mntdir[ 512 ] = { '\0' };
 		char filepath[ 1024 ] = { '\0' };
         if( ( retcode = sscanf( line, "%s%s%*s%*s%*s%*s", filepath, mntdir ) ) == 2 ){
+            //info( "filepath(%s)mntdir(%s) vs devfile(%s)\n", filepath, mntdir, devfile  );
             if( scand_safe_memcmp( devfile, filepath, strlen( filepath ) ) == 0 ){
                 if( strlen( mntdir ) + 1 > length ){
-                    warn( "buffer size %d less than data size %ld", length, strlen( mntdir ) + 1 );
+                    warn( "buffer size %d less than data size %ld \n", length, strlen( mntdir ) + 1 );
                 }else{
                     memcpy( mountpoint, mntdir, strlen( mntdir ) + 1 );
                     fclose( fp );
@@ -877,11 +995,14 @@ int mountExt3( SCAND_HARDDISK_MOUNT_MODE mode, char * devfile, char *mountpoint 
 
     sprintf( command, "chmod -R 777 %s", mountpoint );
 	info( "执行命令:%s", command );
+
+#ifdef EMPOWER_PARTITION    
     retcode = scand_ExecuteCommand( command );        
     if( retcode != 0 ){
 		warn( "授权命令出错!" );            
     }   
-        
+#endif
+
     return 0;
 }
 
@@ -913,11 +1034,14 @@ int mountExt4( SCAND_HARDDISK_MOUNT_MODE mode, char * devfile, char *mountpoint 
 
     sprintf( command, "chmod -R 777 %s", mountpoint );
 	info( "执行命令:%s\n", command );
+
+#ifdef EMPOWER_PARTITION    
     retcode = scand_ExecuteCommand( command );        
     if( retcode != 0 ){
 		warn( "授权命令出错!" );            
     }   
-        
+#endif
+
     return 0;
 }
 
@@ -936,6 +1060,7 @@ int mountNTFS( SCAND_HARDDISK_MOUNT_MODE mode, char * devfile, char *mountpoint 
         sprintf( command, "ntfsmount -o force,norelatime,ro %s %s > /dev/null 2>&1;echo $? > %s", devfile, mountpoint, SCAND_MOUNT_RESULT_FILE );
     }
 
+    
 	info( "执行命令:%s\n", command );
     retcode = scand_ExecuteCommand( command );
     if( retcode != 0 ){
@@ -944,11 +1069,15 @@ int mountNTFS( SCAND_HARDDISK_MOUNT_MODE mode, char * devfile, char *mountpoint 
 
     sprintf( command, "chmod -R 777 %s", mountpoint );
 	info( "执行命令:%s\n", command );
+
+#ifdef EMPOWER_PARTITION
     retcode = scand_ExecuteCommand( command );        
     if( retcode != 0 ){
 		warn( "授权命令出错!" );            
     }  
-    
+#endif
+
+
     return 0;
 }
     
@@ -974,11 +1103,13 @@ int mountDefault( SCAND_HARDDISK_MOUNT_MODE mode, char * devfile, char *mountpoi
     
     sprintf( command, "chmod -R 777 %s", mountpoint );
 	info( "执行命令:%s\n", command );
+#ifdef EMPOWER_PARTITION    
     retcode = scand_ExecuteCommand( command );        
     if( retcode != 0 ){
 		warn( "授权命令出错!" );            
     }
-    
+#endif
+
     return 0;
 }
 
@@ -1059,6 +1190,7 @@ int get_source_info_from_harddisk( char *mountp, SCAND_HARDDISK_STYLE *sourceSta
         return 0;
     }else{
 		*sourceStatus = EM_TARGET_HD;
+        return 0;
     }
     
     sprintf( sourcePath, "%s/%s", mountp, "SERIAL.NO" );
@@ -1067,9 +1199,10 @@ int get_source_info_from_harddisk( char *mountp, SCAND_HARDDISK_STYLE *sourceSta
         return 0;
     }else{
 		*sourceStatus = EM_TARGET_HD;
+        return 0;
     }
     
-    return 0;
+    return -1;
 }
 
 
@@ -1111,6 +1244,8 @@ int fill_harddisk_info( char * devname, char * devfile, char * serialno,
     hdnode->devname = scand_safestrdup( devname );
 	hdnode->devfile = scand_safestrdup( devfile );
     hdnode->serialno = scand_safestrdup( serialno ); 
+    //info( ">>>> devfile(%s) 获取设备号:%s\n", hdnode->devfile, hdnode->serialno );
+    
 
 #ifdef MUTEX
 	pthread_mutex_unlock( &mutex );
@@ -1157,33 +1292,37 @@ int fill_partition_info( int index, char * devname, char * devfile, char * hddev
 int get_serialno_file_from_harddisk( char * mountp, char *serialno, int length ){
 
 	if( NULL == mountp ){
-		warn( "传入的值出错!" );
+		warn( "传入的值出错!\n" );
         return -1;
     }
 
     int retcode = 0;
 	char serialnoPath[ 1024 ] = { '\0' };
     sprintf( serialnoPath, "%s/%s", mountp, CAPIRALS_SERIALNO_FILE_NAME );
-	info( "查找路径是: %s", serialnoPath );    
+	info( "查找路径是: %s\n", serialnoPath );    
 	if( access( serialnoPath, R_OK ) == 0 ){
-		retcode = reead_content_from_hdsn_file( serialnoPath, serialno, length );
+		retcode = read_content_from_hdsn_file( serialnoPath, serialno, length );
         if( 0 != retcode ){
-			warn( "读取内容出错，错误码:(%d)", retcode );
+			warn( "读取内容出错，错误码:(%d)\n", retcode );
             return -1;
+        }else{
+			return 0;
         }
     }
 
     sprintf( serialnoPath, "%s/%s", mountp, SERIALNO_FILE_NAME );
-	info( "查找路径是: %s", serialnoPath );
+	info( "查找路径是: %s\n", serialnoPath );
     if( access( serialnoPath, R_OK ) == 0 ){
-		retcode = reead_content_from_hdsn_file( serialnoPath, serialno, length );
+		retcode = read_content_from_hdsn_file( serialnoPath, serialno, length );
         if( 0 != retcode ){
-			warn( "读取内容出错，错误码:(%d)", retcode );
+			warn( "读取内容出错，错误码:(%d)\n", retcode );
             return -1;
+        }else{
+			return 0;
         }
     }
 
-    return 0;   
+    return -1;   
 }
 
 
@@ -1287,3 +1426,34 @@ int scsi_io( int fd, unsigned char * cdb, unsigned char cdb_size, int xfer_dir, 
 
     return 0;
 }
+
+
+int get_hdserialno( const char* devfile, char* serialno, int length ){
+    if( NULL == devfile ){
+		warn( "传入值出错!" );
+		return -1;
+    }
+    
+    struct hd_driveid id;
+    int retcode = -1;
+	int  fd = open( devfile , O_RDONLY|O_NONBLOCK );
+    while( 1 ){
+        if ( fd < 0 ){
+			warn( "读取内容失败, err:%s", strerror( errno ) );             
+            break;
+        }
+
+        if( !ioctl( fd, HDIO_GET_IDENTITY, &id ) ){
+             strncpy( serialno, id.serial_no, length );
+             info( "serialno:%s\n", serialno  );
+             retcode = 0;
+        }
+        
+        break;
+    }
+    
+    return retcode;
+}
+
+
+
