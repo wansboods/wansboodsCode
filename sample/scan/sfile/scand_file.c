@@ -269,9 +269,8 @@ int read_movie_file_from_mbar_hddisk( SCAND_HARDDISK_STYLE style, char *path, SC
     }
 
 
-	SCAND_MOVIE_INFORMATION_LIST * pmovlist = *movlist;
-	show_movie_file( pmovlist );
-
+	//SCAND_MOVIE_INFORMATION_LIST * pmovlist = *movlist;
+	//show_movie_file( pmovlist );
     return retcode;
 }
 

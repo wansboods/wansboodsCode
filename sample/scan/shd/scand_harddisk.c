@@ -60,7 +60,6 @@
 #endif
 
 #define MAX_SCAND_LINE_LENGTH 1024
-#define MAX_SCAND_DEVINFO_LENGTH 512
 #define MAX_SCAND_SCSI_TIMEOUT 5000 /* ms */
 
 void free_harddisk_list( SCAND_HD_INFO_LIST ** list );
@@ -82,7 +81,7 @@ int scsi_io( int fd, unsigned char * cdb, unsigned char cdb_size, int xfer_dir, 
 int scsi_inquiry_unit_serial_number( int fd, char * serialno, int length );
 
 int fill_harddisk_info( char *, char *, char *, unsigned long long int , SCAND_STORAGE_MEDIUM , SCAND_HD_INFO_LIST * );
-int fill_partition_info( int, char *, char *, char *,char *, SCAND_MOUNT_STATUS, SCAND_HARDDISK_STYLE, char *, SCAND_PARTITION_FS, unsigned long long int, unsigned long long int, unsigned long long int,unsigned long long int, SCAND_PARTITION_INFO_LIST * );
+int fill_partition_info( int, char *, char *, char *,char *, SCAND_MOUNT_STATUS, SCAND_HARDDISK_STYLE, char *, SCAND_PARTITION_FS, unsigned long long int, unsigned long long int, unsigned long long int,unsigned long long int, SCAND_PARTITION_INFO_LIST *,SCAND_MOVIE_INFORMATION_LIST *);
 	
 int complete_harddisk_information( SCAND_HD_INFO_LIST * hd );
 int loading_partitions_info_from_harddisk( char * devname, char *hdserialno, SCAND_MOUNT_STATUS *mstatus, SCAND_PARTITION_INFO_LIST ** list  );
@@ -153,6 +152,8 @@ void show_hd_list(){
 
             info( "\t硬盘设备名:%s\n",  partlist->hddevname );
 			info( "\t硬盘设备路径:%s\n",  partlist->hddevfile );
+            show_movie_file( ( SCAND_MOVIE_INFORMATION_LIST * ) partlist->list );
+                
 
 			info( "\t----- end ----\n\n" );		
 			
@@ -214,12 +215,12 @@ int loading_hard_disk_list( DIR * sock_dir, SCAND_HD_INFO_LIST ** list ){
                     if( retcode != 0 ){
 						warn( "注入数据值harddisk info 失败!\n" );
                     }
-                    
+
+                    //补充硬盘信息
                     retcode = complete_harddisk_information( node );
                     if( retcode != 0 ){
-
+						warn( "(%d) 补充硬盘信息出错!\n", retcode );
                     }
-
                     
                 }
             }
@@ -620,10 +621,11 @@ int loading_partitions_list( DIR * sockdir, char *blockpath, char *devname, char
             //获取分区挂载状态和挂载点
 			retcode = get_partition_mountinfo_from_harddisk( devfile, mountpoint, sizeof( mountpoint ) );
             if( 0 != retcode ){
-                info( "分区(%s)处于为挂载状态\n", devfile );
+                info( "分区(%s)处于未挂载状态\n", devfile );
 				memset( local_mount_dir, 0, sizeof( local_mount_dir ) );
-                //硬盘处于未挂载,程序自动进行挂载硬盘
+                //
 #ifdef MOUNTED_HDIDSK
+				info( "硬盘分区(%s) 处于未挂载,程序自动进行挂载硬盘\n", devfile );
 				sprintf( local_mount_dir, "%s/%s", SCAND_USER_HD_LOCAL_MOUNT_DIR, ptr->d_name );
 				retcode = scand_newDirectory( local_mount_dir );
                 if( 0 != retcode ){
@@ -631,7 +633,7 @@ int loading_partitions_list( DIR * sockdir, char *blockpath, char *devname, char
                 }else{
                     retcode = scand_mount_partition_from_harddisk( EM_READ_AND_WIRTE_MODE, devfile, local_mount_dir, fsfmt );
 					if( 0 != retcode ){
-						warn( "(%d) 挂载出错! (%s)(%s)(%d)\n", retcode, devfile, local_mount_dir, fsfmt );
+						warn( "( %d ) 挂载出错! (%s)(%s)(%d)\n", retcode, devfile, local_mount_dir, fsfmt );
                         mountstatus = EM_UNMOUNT;
                     }else{
 						mountstatus = EM_MOUNTED;
@@ -642,7 +644,7 @@ int loading_partitions_list( DIR * sockdir, char *blockpath, char *devname, char
                     if( retcode != 0 ){
 						warn( "获取硬盘类型出错!\n" );
                     }
-
+					
 	#ifdef SOURCE_HD_READ_MOUNT
                     retcode = scand_unmount_partition_from_harddisk( local_mount_dir );
                     if( retcode != 0 ){
@@ -680,6 +682,7 @@ int loading_partitions_list( DIR * sockdir, char *blockpath, char *devname, char
                     
             }
 
+			SCAND_MOVIE_INFORMATION_LIST * movlist = NULL;
 			if( EM_MOUNTED == mountstatus ){
 				//获取分区文件系统容量信息
 				retcode = get_partition_filesystem_info_from_harddisk( mountpoint, &usedsize, &availsize, &freesize );
@@ -719,7 +722,6 @@ int loading_partitions_list( DIR * sockdir, char *blockpath, char *devname, char
 #endif                    
                 }    
 
-				SCAND_MOVIE_INFORMATION_LIST * movlist = NULL;
                 //获取硬盘分区下的影片信息				
 				retcode = read_movie_file_from_mbar_hddisk( sourceStatus, mountpoint, &movlist );
                 if( retcode != 0 ){
@@ -738,7 +740,8 @@ int loading_partitions_list( DIR * sockdir, char *blockpath, char *devname, char
             add_node_into_partition_list( list, partition_node );
 			retcode = fill_partition_info( index, ptr->d_name, devfile, devname, hddevfile 
                 ,mountstatus, sourceStatus, mountpoint, fsfmt, totalsize, usedsize, availsize,
-                freesize, partition_node );
+                freesize, partition_node, movlist );
+            
             if( retcode ){
 				warn( "注入分区数据出错!" );
             }
@@ -909,62 +912,6 @@ int get_partition_mountinfo_from_harddisk( char * devfile, char * mountpoint, in
     
     fclose( fp );
     return -1;
-}
-
-
-int scand_newDirectory( char * dir ){
-    if( NULL == dir ){
-        warn( "传入值出错!" );
-        return -1;
-    }
-
-    char * topdir = dir;
-    char * zonedir = dir;
-    char * splitdir = NULL;    
-    while( NULL != ( splitdir = strchr( zonedir, '/' ) ) ){
-        char localdir[ MAX_SCAND_DEVINFO_LENGTH ] = { '\0' };
-        if( ( splitdir - topdir ) ){
-            
-            memset( localdir, 0, MAX_SCAND_DEVINFO_LENGTH );
-            memcpy( localdir, topdir, splitdir - topdir );
-
-            //printf( "create directory: %s\n", localdir );
-            if( mkdir( localdir, 0777 ) < 0 ){
-                if( errno != EEXIST ){
-                    warn( "创建目录%s 失败.. err: %s", localdir, strerror( errno ) );
-                    return -1;
-                }
-            }
-        }
-        
-        zonedir = splitdir + 1;
-    }
-
-    if( mkdir( topdir, 0777 ) < 0 ){
-        if( errno != EEXIST ){
-            warn( "创建目录%s 失败.. err: %s", topdir, strerror( errno ) );            
-            return -1;
-        }
-    }
-
-    return 0;
-}
-
-
-
-
-int scand_ExecuteCommand( char * command ){
-    if( NULL == command ){
-		warn( "传入的参数出错!" );
-        return -1;
-    }
-    
-    if( system( command ) < 0 ){
-        
-        return -1;
-    }
-    
-    return 0;
 }
 
 int mountExt3( SCAND_HARDDISK_MOUNT_MODE mode, char * devfile, char *mountpoint ){
@@ -1150,12 +1097,12 @@ int scand_mount_partition_from_harddisk( SCAND_HARDDISK_MOUNT_MODE mode, char * 
 		}
     }
 		
-	fclose( fp );
+	fclose( fp );    
 	if( *line != '0' ){	
-		return 0;
+		return -1;
 	}
- 
-    return -1;
+
+    return 0;
 }
 
 int scand_unmount_partition_from_harddisk( char * mountp ){
@@ -1258,7 +1205,7 @@ int fill_partition_info( int index, char * devname, char * devfile, char * hddev
     char * hddevfile, SCAND_MOUNT_STATUS mountstatus, SCAND_HARDDISK_STYLE style, 
     char * mountpoint, SCAND_PARTITION_FS fsfmt, unsigned long long int totalsize,
     unsigned long long int usedsize, unsigned long long int availsize,unsigned long long int freesize,
-	SCAND_PARTITION_INFO_LIST * partition_node ){
+	SCAND_PARTITION_INFO_LIST * partition_node, SCAND_MOVIE_INFORMATION_LIST * movlist ){
 
     if( NULL == partition_node ){
 		warn( "传入值出错!" );
@@ -1281,7 +1228,9 @@ int fill_partition_info( int index, char * devname, char * devfile, char * hddev
     partition_node->hddevname = scand_safestrdup( hddevname );
     partition_node->hddevfile = scand_safestrdup( hddevfile );
     partition_node->mountpoint = scand_safestrdup( mountpoint );
-
+	if( NULL != movlist )
+	    partition_node->list = ( void *)movlist;
+    
 #ifdef MUTEX
 	pthread_mutex_unlock( &mutex );
 #endif

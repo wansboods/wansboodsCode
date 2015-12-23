@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
 
 #include "scand_basiclib.h"
 
@@ -20,6 +23,8 @@
 	#define debug  printf
 	#define notice printf
 #endif
+
+#define MAX_SCAND_DEVINFO_LENGTH 512
 
 void scand_safe_free( void * ptr ){
 	if( ptr ){
@@ -98,4 +103,57 @@ int scand_valid_num_values( char * filename ){
     info( "字符串(%s)  是有效值\n", filename );
     return 0;
 }
+
+
+int scand_newDirectory( char * dir ){
+    if( NULL == dir ){
+        warn( "传入值出错!" );
+        return -1;
+    }
+
+    char * topdir = dir;
+    char * zonedir = dir;
+    char * splitdir = NULL;    
+    while( NULL != ( splitdir = strchr( zonedir, '/' ) ) ){
+        char localdir[ MAX_SCAND_DEVINFO_LENGTH ] = { '\0' };
+        if( ( splitdir - topdir ) ){
+            
+            memset( localdir, 0, MAX_SCAND_DEVINFO_LENGTH );
+            memcpy( localdir, topdir, splitdir - topdir );
+            info( "创建目录:%s\n", localdir );
+            if( mkdir( localdir, 0777 ) < 0 ){
+                if( errno != EEXIST ){
+                    warn( "创建目录%s 失败.. err: %s", localdir, strerror( errno ) );
+                    return -1;
+                }
+            }
+        }
         
+        zonedir = splitdir + 1;
+    }
+
+    info( "创建目录:%s\n", topdir );
+    if( mkdir( topdir, 0777 ) < 0 ){
+        if( errno != EEXIST ){
+            warn( "创建目录%s 失败.. err: %s", topdir, strerror( errno ) );            
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+
+int scand_ExecuteCommand( char * command ){
+    if( NULL == command ){
+		warn( "传入的参数出错!" );
+        return -1;
+    }
+    
+    if( system( command ) < 0 ){
+        
+        return -1;
+    }
+    
+    return 0;
+}        

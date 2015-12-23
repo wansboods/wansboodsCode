@@ -77,9 +77,9 @@ typedef struct{
 }SCAND_MOVIE_INFORMATION_LIST;
 
 
+void show_movie_file( SCAND_MOVIE_INFORMATION_LIST * movlist );
 int get_serialno_file_from_harddisk( char * mountp, char *ghdsn, int length );
 int read_content_from_hdsn_file( char * serialnoPath, char *serialno, int length );
-
 int read_movie_file_from_mbar_hddisk( SCAND_HARDDISK_STYLE style, char *path, SCAND_MOVIE_INFORMATION_LIST ** movlist );
 
 
