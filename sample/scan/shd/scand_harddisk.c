@@ -882,6 +882,40 @@ int get_partition_totalsize_from_harddisk( char * devfile, int index, unsigned l
     return 0;
 }
 
+int get_partition_mountmode_from_harddisk( char * devfile, SCAND_HARDDISK_MOUNT_MODE * mode ){
+
+    char * COMMANDLINE = "/etc/mtab";
+    FILE *fp = fopen( COMMANDLINE, "r" );
+    if( NULL == fp ){
+        warn( "打开文件失败%s, err: %s", COMMANDLINE, strerror( errno ) );
+        return -1;
+    }
+
+    int retcode = 0;
+    char line[ MAX_SCAND_LINE_LENGTH ] = { '\0' };
+    while( fgets( line, sizeof( line ), fp ) ){        
+        char strline[ 512 ] = { '\0' };
+        char filepath[ 1024 ] = { '\0' };
+        if( ( retcode = sscanf( line, "%s%*s%*s%s%*s%*s", filepath, strline ) ) == 2 ){
+	        if( scand_safe_memcmp( devfile, filepath, strlen( filepath ) ) == 0 ){
+                char strmode[32] = { '\0' };
+        	    sscanf( strline, "%[^,]", strmode );
+				if( scand_safe_memcmp( strmode, "rw", strlen( "rw" ) ) == 0 ){
+					*mode = EM_READ_AND_WIRTE_MODE;
+                }else if( scand_safe_memcmp( strmode, "ro", strlen( "ro" ) ) == 0 ){
+					*mode = EM_OLNY_READ_MODE;
+                }else{
+					*mode = 0;
+                }
+
+                return 0;
+	        }        
+       }
+  	}
+
+    return -1;
+}
+
 int get_partition_mountinfo_from_harddisk( char * devfile, char * mountpoint, int length ){
 
 	char * COMMANDLINE = "/etc/mtab";
@@ -1273,8 +1307,6 @@ int get_serialno_file_from_harddisk( char * mountp, char *serialno, int length )
 
     return -1;   
 }
-
-
 
 int scsi_inquiry_unit_serial_number( int fd, char * serialno, int length ){
     unsigned char cdb[] = { 0x12,0x01,0x80, 0, 0, 0 };

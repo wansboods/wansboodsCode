@@ -3,8 +3,8 @@
 
 typedef enum{
 
-	EM_OLNY_READ_MODE = 0,
-    EM_READ_AND_WIRTE_MODE = 1,
+	EM_OLNY_READ_MODE = 1,
+    EM_READ_AND_WIRTE_MODE = 2,
 
 }SCAND_HARDDISK_MOUNT_MODE;
 
@@ -15,6 +15,7 @@ typedef enum{
     EM_SOURCE_HD = 1,    //原盘
     EM_TARGET_HD = 2,    //目标盘
 }SCAND_HARDDISK_STYLE;
+
 
 typedef enum{
 
@@ -98,6 +99,6 @@ int get_source_info_from_harddisk( char *mountp, SCAND_HARDDISK_STYLE *sourceSta
 int get_partitions_info_from_harddisk( char * blockpath, SCAND_PARTITION_INFO_LIST ** list );
 int get_partition_filesystem_info_from_harddisk( char * mountp, unsigned long long int * usedsize, unsigned long long int * availsize, unsigned long long int * freesize );
 int get_serialno_file_from_harddisk( char * mountp, char *serialno, int length );
-
+int get_partition_mountmode_from_harddisk( char * devfile, SCAND_HARDDISK_MOUNT_MODE * mode );
 
 #endif //__SCAND_HARDDISK_H_
