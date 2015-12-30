@@ -303,3 +303,4 @@ void md5_passwd(char *oldpasswd, char *md5_passwd)
     for( di = 0; di < 16; di ++ )  
         sprintf( md5_passwd,"%s%02x",md5_passwd,digest[di]);  
 }
+

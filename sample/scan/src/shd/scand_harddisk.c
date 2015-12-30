@@ -253,7 +253,7 @@ int start_loading_hard_disk_list( SCAND_HD_INFO_LIST ** list ){
     closedir( dir );
     
 	*list = s_hd_list;
-    show_hd_list();
+    //show_hd_list();
     return 0;
 }
 

@@ -259,12 +259,19 @@ int read_movie_file_from_mbar_hddisk( SCAND_HARDDISK_STYLE style, char *path, SC
 	char searchpath[ MAX_SEARCHPATH_LENHTH ] = { '\0' };
     switch( style ){
 		case EM_SOURCE_HD:
-            memcpy( searchpath, path, strlen( path ) + 1 );
+            memcpy( searchpath, path, strlen( path ) + 1 );            
+			info( ">>>>>>>> searchpath:%s\n", searchpath );
             directoryTraversal( movlist, searchpath, 2 );                
             break;
         case EM_TARGET_HD:
 			sprintf( searchpath, "%s%s", path, SCAND_MBAR_MOVIS_PATH );
-            directoryTraversal( movlist, searchpath, 2 );            
+            if( access( searchpath, R_OK ) != 0 ) {
+				memcpy( searchpath, path, strlen( path ) + 1 );
+            }
+            
+			info( ">>>>>>>> searchpath:%s\n", searchpath );
+            directoryTraversal( movlist, searchpath, 2 );
+            
             break;
     }
 
@@ -694,4 +701,42 @@ int fileparsing( char *suffix, SCAND_FILE_TYPE *filetype, SCAND_PACKAGE_FORMAT *
 }
 
 
+
+int get_path_and_suffix_form_filepath( char * filepath, char * path, int pathlength , char * suffix,int suffixlength  ){
+	if( NULL == filepath ){
+        warn( "传入值出错!\n" );
+		return -1;
+    }
+    
+	char * start_filepath = filepath;
+    char * pfilepath = filepath;
+        
+    if( ( pfilepath = strrchr( filepath, '/' ) ) ){
+        if( pfilepath - start_filepath < pathlength ){
+			memcpy( path, start_filepath, pfilepath - start_filepath );
+        }
+        else{
+            warn( "传入的buf 值过小, 不满足存放值需要的空间( %ld )\n",  pfilepath - start_filepath );            
+            return -1;
+        }
+
+        if( ( pfilepath = strrchr( filepath, '.' ) ) ){
+	        if( strlen( pfilepath ) + 1 < pathlength ){
+				memcpy( suffix, pfilepath, strlen( pfilepath ) + 1 );
+	        }
+	        else{
+            	warn( "传入的buf 值过小, 不满足存放值需要的空间( %ld )\n", strlen( pfilepath ) + 1 );
+	            return -1;
+	        }
+            
+        }else{
+        	warn( "( %s )未找到后缀名..\n", pfilepath );
+			return -1;
+        }
+        
+        return 0;
+    }
+    
+	return -1;
+}
 

@@ -2,6 +2,8 @@ CC := gcc
 DFLAGS := -shared
 CFLAGS := -Wall -fPIC
 CFLAGS += -I. -Iclib -Isdir -Isfile -Ishd
+CFLAGS += -DMOUNTED_HDIDSK
+
 LDFLAGS :=
 
 #SRCDIRS := $(shell ls -l | grep "^d" | awk {'print $8'} )

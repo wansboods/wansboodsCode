@@ -8,6 +8,7 @@
 
 #include "scand_basiclib.h"
 
+
 #ifdef OPENZLOG
 	#define info    dzlog_info	
 	#define warn    dzlog_warn
@@ -157,3 +158,4 @@ int scand_ExecuteCommand( char * command ){
     
     return 0;
 }        
+
