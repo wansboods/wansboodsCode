@@ -146,7 +146,8 @@ int main( int argc, char **argv )
                 curfds++;
                 continue;
             }
-            
+
+           
             // 处理客户端请求
             if( deal_data_from_mbarsys_msg_channel( events[n].data.fd, inet_ntoa( cliaddr.sin_addr ) ) < 0 ){
                 epoll_ctl( kdpfd, EPOLL_CTL_DEL, events[n].data.fd, &ev );
@@ -194,8 +195,8 @@ int deal_data_from_mbarsys_msg_channel( int connfd, char * ipaddr ) {
 
     int retcode = 0;
 	EPOLL_MESSAGE_HEAD rcvmsghead;
-	memset( &rcvmsghead, 0, sizeof( EPOLL_MESSAGE_HEAD ) );    
-
+	memset( &rcvmsghead, 0, sizeof( EPOLL_MESSAGE_HEAD ) );
+    
     void * rcvmsgdata = NULL;
     retcode = receive_epoll_data_from_tcp_communication_channel( connfd, &rcvmsghead, sizeof( rcvmsghead ), &rcvmsgdata, MAX_EPOOL_MSG_RECEIVE_TIMEOUT );
     if( retcode < 0 ){

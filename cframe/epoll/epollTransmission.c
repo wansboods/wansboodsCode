@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "safeop.h"
 #include "tcpapi.h"
@@ -68,10 +69,9 @@ int receive_epoll_data_from_tcp_communication_channel( int sockfd, EPOLL_MESSAGE
         warn( "从TCP通道中读取数据失败.错误原因: %s\n", strerror( errno ) );
         return -1;
     }
-
-    if( recvlen < sizeof( EPOLL_MESSAGE_HEAD ) ){
-        warn( "从TCP通道中读取的数据长度%d小于消息头的长度%ld,这是一个无效的消息.丢弃", recvlen, sizeof( EPOLL_MESSAGE_HEAD ) );
-        safe_free( msgdata );
+        
+    if( recvlen != sizeof( EPOLL_MESSAGE_HEAD ) ){
+        warn( "从TCP通道中读取的数据长度%d 不等于消息头的长度%ld, 这是一个无效的消息.丢弃", recvlen, sizeof( EPOLL_MESSAGE_HEAD ) );
         return -1;
     }
     
@@ -84,9 +84,7 @@ int receive_epoll_data_from_tcp_communication_channel( int sockfd, EPOLL_MESSAGE
             return -1;
         }
         
-        memset( msgdata, 0, head->length + 1 );
-        if( ( recvlen = receive_data_from_tcp_socket( sockfd, msgdata, head->length, timeout ) ) < 0 ){
-            
+        if( ( recvlen = receive_data_from_tcp_socket( sockfd, msgdata, head->length, timeout ) ) < 0 ){            
             warn( "从TCP通道中读取数据失败.错误原因: %s\n", strerror( errno ) );
             return -1;
         }

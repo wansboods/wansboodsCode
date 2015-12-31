@@ -1,14 +1,15 @@
 CC := gcc
 CFLAGS := -I.
 CFLAGS += -Ithirdparty/mysql
-CFLAGS += -Ithirdparty/basic/include/
+CFLAGS += -Ithirdparty/basic/include
 CFLAGS += -Ithirdparty/libxml2/include/libxml2
-CFLAGS += -Ithirdparty/pkmysql/include/
+CFLAGS += -Ithirdparty/pkmysql/include
+CFLAGS += -Ithirdparty/mysql/include
 
 LDFLAGS := -Lthirdparty/basic/library -lhdbs
-LDFLAGS += -Lthirdparty/mysql -lmysqlclient
-LDFLAGS += -Lthirdparty/libxml2/library -lxml2
 LDFLAGS += -Lthirdparty/pkmysql/library -lpkmysql
+LDFLAGS += -Lthirdparty/mysql/library -lmysqlclient
+LDFLAGS += -Lthirdparty/libxml2/library -lxml2
 
 #SRCDIRS := $(shell ls -l | grep "^d" | awk {'print $8'} )
 SRCDIRS := $(shell ls | grep -v Makefile )
