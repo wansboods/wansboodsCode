@@ -83,4 +83,7 @@ int read_content_from_hdsn_file( char * serialnoPath, char *serialno, int length
 int read_movie_file_from_mbar_hddisk( SCAND_HARDDISK_STYLE style, char *path, SCAND_MOVIE_INFORMATION_LIST ** movlist );
 int get_path_and_suffix_form_filepath( char * filepath, char * path, int pathlength , char * suffix,int suffixlength  );
 
+
+int wirte_NFSfile( char * local_mount_dir );
+
 #endif //__SCAND_FILE_H__

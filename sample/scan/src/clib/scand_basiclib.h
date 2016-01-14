@@ -2,6 +2,9 @@
 #define __SCAND_BASICLIB_H__
 
 
+char * l_trim(char * szOutput, const char * szInput );
+char * r_trim(char * szOutput, const char * szInput );
+char * a_trim(char * szOutput, const char * szInput );
 
 
 void scand_safe_free( void * ptr );

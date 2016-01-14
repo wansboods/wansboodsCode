@@ -14,6 +14,8 @@ typedef enum{
     EM_UNKNOWN = 0, 
     EM_SOURCE_HD = 1,    //原盘
     EM_TARGET_HD = 2,    //目标盘
+    EM_DOWNLOAD_HD = 3, //下载盘
+    
 }SCAND_HARDDISK_STYLE;
 
 

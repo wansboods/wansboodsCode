@@ -740,3 +740,46 @@ int get_path_and_suffix_form_filepath( char * filepath, char * path, int pathlen
 	return -1;
 }
 
+
+#define SCAND_EXPORTS_PATH "/etc/exports"
+int wirte_NFSfile( char * local_mount_dir ){
+	if( NULL == local_mount_dir ){
+
+		return -1;
+    }
+
+	int setflg = 0;
+    FILE * fp;
+    fp = fopen( SCAND_EXPORTS_PATH, "r" ) ;             
+    if( NULL == fp ){
+		warn( "打开文件( %s ) 出错! err:%s\n", SCAND_EXPORTS_PATH, strerror( errno )  );
+        return -1;
+    }
+    
+
+    char rline[ 1024 ] = { '\0' };
+ 	while( fgets( rline, sizeof( rline ), fp ) ){
+		if( ( strstr( rline, local_mount_dir ) ) ){
+            setflg = 1;
+			break;
+        }
+    }
+
+    fclose( fp );
+    if( setflg ){
+        info( "%s 已经存在挂载路径( %s )\n", local_mount_dir );        
+		return 0;
+    }
+
+    fp = fopen( SCAND_EXPORTS_PATH, 'at+' ); 
+    if( NULL == fp ){
+		warn( "打开文件( %s ) 出错! err:%s\n", SCAND_EXPORTS_PATH, strerror( errno )  );
+        return -1;
+    }
+
+    char command[ 512 ] = { '\0' };
+    sprintf( command, "%s *(rw,sync,no_root_squash,no_subtree_check)\n", local_mount_dir );    
+    fwrite( command, strlen( command ) + 1, 1, fp );
+    fclose( fp );
+    return 0;
+}

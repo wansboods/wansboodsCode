@@ -327,15 +327,20 @@ int get_serialno_from_harddisk( char * devfile, char * serialno, int length ){
         return -1;
     }
 
+    char * removeSerialno = remove_redundant_characters( removeSerialno, '\n' );
+    if( NULL == removeSerialno ){
+		warn( "去除多余字符出错!\n" );
+        return -1;
+    }
+
     if( length < strlen( removeSerialno ) + 1 ){
 		warn( "存入数据值大小出错!\n" );
         return -1;
     }
     
     memcpy( serialno, removeSerialno, strlen( removeSerialno ) + 1 );
-    //info( ">>>>removeSerialno:%s\n ", removeSerialno );
-
-    
+    scand_safe_free( removeSerialno );
+    //info( ">>>>removeSerialno:%s\n ", removeSerialno );    
 #if 0    
     
     int sock;
@@ -553,6 +558,9 @@ int complete_harddisk_information( SCAND_HD_INFO_LIST * hd ){
     return 0;    
 }
 
+
+
+
 int loading_partitions_list( DIR * sockdir, char *blockpath, char *devname, char *ghdserialno, SCAND_MOUNT_STATUS * mstatus, SCAND_PARTITION_INFO_LIST ** list ){
 	if( NULL == devname ){
 		warn( "设备名传入出错!\n" );
@@ -648,7 +656,7 @@ int loading_partitions_list( DIR * sockdir, char *blockpath, char *devname, char
 	#ifdef SOURCE_HD_READ_MOUNT
                     retcode = scand_unmount_partition_from_harddisk( local_mount_dir );
                     if( retcode != 0 ){
-						warn( "为能卸载硬盘挂载点( %s )\n", local_mount_dir );
+						warn( "未能卸载硬盘挂载点( %s )\n", local_mount_dir );
                     }else{
  						mountstatus = EM_UNMOUNT;
                     }
@@ -722,6 +730,14 @@ int loading_partitions_list( DIR * sockdir, char *blockpath, char *devname, char
 #endif                    
                 }    
 
+#ifdef DOWNLOAD_DISK
+                // 特殊下载硬盘 进行 NFS 挂载
+                if( EM_DOWNLOAD_HD == sourceStatus ){
+					wirte_NFSfile( local_mount_dir );                    
+                        
+                    
+                }
+#endif                    
                 //获取硬盘分区下的影片信息				
 				retcode = read_movie_file_from_mbar_hddisk( sourceStatus, mountpoint, &movlist );
                 if( retcode != 0 ){
@@ -741,6 +757,7 @@ int loading_partitions_list( DIR * sockdir, char *blockpath, char *devname, char
 			retcode = fill_partition_info( index, ptr->d_name, devfile, devname, hddevfile 
                 ,mountstatus, sourceStatus, mountpoint, fsfmt, totalsize, usedsize, availsize,
                 freesize, partition_node, movlist );
+
             
             if( retcode ){
 				warn( "注入分区数据出错!" );
@@ -1169,21 +1186,22 @@ int get_source_info_from_harddisk( char *mountp, SCAND_HARDDISK_STYLE *sourceSta
     if( access( sourcePath, R_OK ) == 0 ){
 		*sourceStatus = EM_SOURCE_HD;
         return 0;
-    }else{
-		*sourceStatus = EM_TARGET_HD;
-        return 0;
     }
-    
+
     sprintf( sourcePath, "%s/%s", mountp, "SERIAL.NO" );
-    if( access( sourcePath, R_OK ) == 0 ){
+	if( access( sourcePath, R_OK ) == 0 ){
 		*sourceStatus = EM_SOURCE_HD;
         return 0;
-    }else{
-		*sourceStatus = EM_TARGET_HD;
-        return 0;
     }
-    
-    return -1;
+
+    sprintf( sourcePath, "%s/%s", mountp, "download_disk" );
+	if( access( sourcePath, R_OK ) == 0 ){
+		*sourceStatus = EM_DOWNLOAD_HD;
+        return 0;
+    }   
+
+    *sourceStatus = EM_TARGET_HD;       
+    return 0;
 }
 
 

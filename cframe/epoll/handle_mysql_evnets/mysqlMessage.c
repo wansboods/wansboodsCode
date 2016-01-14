@@ -46,10 +46,13 @@ int deal_mbarsys_message_event( int sock, char * ippadr, int type, char * messag
             retcode = mysql_event_select_date_from_wxxwxx_t( message, length, msgdata, msglen );
             break;
     	case MM_TEST_DELECT_DATE_FROM_WXXWXX_T:
+            retcode = mysql_event_delect_from_wxxwxx_t( message, length, msgdata, msglen );
             break;
 	    case MM_TEST_UPDATE_DATE_FROM_WXXWXX_T:
+            retcode = mysql_event_update_from_wxxwxx_t( message, length, msgdata, msglen );
             break;            
 	    case MM_TEST_INSERT_DATE_FROM_WXXWXX_T:
+            retcode = mysql_event_insert_from_wxxwxx_t( message, length, msgdata, msglen );
             break;
 		default:
             return -1;

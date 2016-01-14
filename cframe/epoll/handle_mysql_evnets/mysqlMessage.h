@@ -2,10 +2,10 @@
 #define __MYSQLMESSAGE_H__
 
 
-//�¼�ö�� xxxxx  
-// ��һλ: 1:��ѯ/2:ɾ��/:3�޸�/:4����
-// �ڶ�δ: 1:oracle����/2:mysql����
-// ���� ~ ��λ: �¼���� 
+//事件枚举 xxxxx  
+// 第一位: 1:查询/2:删除/:3修改/:4插入
+// 第二未: 1:oracle操作/2:mysql操作
+// 第三 ~ 五位: 事件序号 
 typedef enum{
 
 	MM_TEST_SELECT_DATE_FROM_WXXWXX_T = 11000,

@@ -21,7 +21,7 @@ TARGET_LIBRARY=build/library
 TARGET_INCLUDE=build/include
 
 OBJ_LIB_DIR=.libs
-TARGET=${OBJ_LIB_DIR}/libcjason.so
+TARGET=${OBJ_LIB_DIR}/libcjson.so
 
 %.o: %.c
 	@echo "Compile $@"

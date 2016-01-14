@@ -29,48 +29,7 @@ void free_config_info_list( READCFN_CONFIG_LIST ** list );
 READCFN_CONFIG_LIST * create_config_info_node( void );
 void add_node_into_config_info_list( READCFN_CONFIG_LIST ** list, READCFN_CONFIG_LIST * node );
 
-/*   删除左边的空格   */
-char * l_trim(char * szOutput, const char *szInput)
-{
-	assert(szInput != NULL);
-	assert(szOutput != NULL);
-	assert(szOutput != szInput);
-	for( NULL; *szInput != '\0' && isspace(*szInput); ++szInput){
-		;
-	}
-	
-	return strcpy(szOutput, szInput);
-}
- 
-/*   删除右边的空格   */
-char *r_trim(char *szOutput, const char *szInput)
-{
-	char *p = NULL;
-	assert(szInput != NULL);
-	assert(szOutput != NULL);
-	assert(szOutput != szInput);
-	strcpy(szOutput, szInput);
-	for(p = szOutput + strlen(szOutput) - 1; p >= szOutput && isspace(*p); --p){
-		;
-	}
-	
-	*(++p) = '\0';
-	return szOutput;
-}
- 
-/*   删除两边的空格   */
-char * a_trim(char * szOutput, const char * szInput){
-	char *p = NULL;
-	assert(szInput != NULL);
-	assert(szOutput != NULL);
-	l_trim(szOutput, szInput);
-	for( p = szOutput + strlen(szOutput) - 1;p >= szOutput && isspace(*p); --p){
-		;
-	}
-	
-	*( ++p ) = '\0';
-	return szOutput;
-}
+
 
 
 int cfn_read_config( char * path, READCFN_CONFIG_LIST ** glist ){

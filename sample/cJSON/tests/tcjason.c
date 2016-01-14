@@ -97,22 +97,29 @@ void parse_json(const char *filename)
 void create_json()
 {
     printf("----------------create json start-----------------------------\n");
-    //组JSON
-    cJSON *root_json = cJSON_CreateObject();
-    cJSON_AddItemToObject(root_json, "name", cJSON_CreateString("EVDI"));
-    cJSON *data_json = cJSON_CreateObject();
-    cJSON_AddItemToObject(root_json, "data", data_json);
-    //添加的另一种方式:cJSON_AddNumberToObject(data_json, "id", 1);通过源码发现仅仅是对cJSON_AddItemToObject的define
-    cJSON_AddItemToObject(data_json, "id", cJSON_CreateNumber(1));
-    //添加的另一种方式:cJSON_AddStringToObject(data_json, "username", "hahaya");
-    cJSON_AddItemToObject(data_json, "username", cJSON_CreateString("hahaya"));
-    cJSON_AddItemToObject(data_json, "userpass", cJSON_CreateString("123456"));
-    cJSON_AddItemToObject(data_json, "version", cJSON_CreateString("1.0"));
-
-    //打印JSON
-    char *out = cJSON_Print(root_json);
-    printf("%s\n", out);
-    free(out);
+	cJSON *root, *rows, *row;
+	char *out;
+	int i = 0;
+	char *title[3] = { "树莓派学习笔记——索引博文", "树莓派学习笔记——GPIO功能学习", "物联网学习笔记——索引博文" };
+	char *url[3] = { "http://blog.csdn.net/xukai871105/article/details/23115627", "http://blog.csdn.net/xukai871105/article/details/12684617", "http://blog.csdn.net/xukai871105/article/details/23366187"}; 
+	root = cJSON_CreateObject(); // 创建根 
+    cJSON_AddItemToObject( root, "result", cJSON_CreateTrue() );    
+    cJSON_AddNumberToObject( root, "totalresults", 3 ); 
+	// 在object中加入array  
+	cJSON_AddItemToObject( root, "rows", rows = cJSON_CreateArray() );
+	for( i = 0; i < 3; i++) {  
+		// 在array中加入object  
+		
+		cJSON_AddItemToArray ( rows, row = cJSON_CreateObject());  
+		cJSON_AddItemToObject( row, "title", cJSON_CreateString( title[i] ) );  
+		cJSON_AddItemToObject( row, "url" , cJSON_CreateString( url[i] ) );  
+	}  
+  
+	// 打印并释放  
+	out = cJSON_Print( root );
+    cJSON_Delete( root );
+    printf( "%s\n", out );
+    free(out);  
     printf("----------------create json end-------------------------------\n");
 }
 
