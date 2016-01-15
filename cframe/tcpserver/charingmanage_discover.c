@@ -1,13 +1,16 @@
 #include <stdio.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <sys/types.h>
 #include <pthread.h>
 
 #include "zlog.h"
-#include "tp_trlv_udp.h"
-#include "discover_comm.h"
+#include "safeop.h"
+#include "charing_trlv.h"
 #include "charingmanage_discover.h"
+#include "charingmanage_message.h"
 
 #ifdef OPENZLOG
 	#define info    dzlog_info	
@@ -25,41 +28,62 @@
 	#define notice printf
 #endif
 
+void check_charing_handler( void );
+void safe_heart_node( char * hostname );
 
-int deal_data_from_charing_discover_msg_channel( int sock, int fd, TRLV_MESSAGE_CB cb  );
-
+int deal_discover_scan_message( int sock, char * ipaddr, int msgtype, void * rcvmsgdata, int rcvmsglen, void ** replymsgdata, int * replymsglen );
+void delete_node_from_heart_information_list_by_fd( HEART_INFO_T ** list, char * hostname );
+int deal_data_from_charing_discover_msg_channel( int sock, int fd, CHARINGMANAGE_MESSAGE_DEAL_CB cb );
 
 //int fdsock = -1;
-#define CHARING_MANAGE_DISCOVER_SERVICE_PORT 2500
-#define AGAIN_CHARING_MANAGE_DISCOVER_SERVICE_PORT 71119
+#define CHARING_MANAGE_DISCOVER_SERVICE_PORT 7003
+#define AGAIN_CHARING_MANAGE_DISCOVER_SERVICE_PORT 7004
 #define DISCOVER_MESSAGE_TYPE_FOUND_STATION  1000
 
 #define DISCOVER_CHARING_REQUEST_STRING "where is charging server"
 #define DISCOVER_CHARING_SERVER_REPLY_STRING  "I'm charging server" 
 
-static HEART_INFO_T * s_heart_information_list = NULL;
+void * deal_charing_manage_heart_event( void * args );
 
+static HEART_INFO_T * s_heart_information_list = NULL;    
+static pthread_mutex_t s_mutex = PTHREAD_MUTEX_INITIALIZER;
+int lock( void ){
+    return pthread_mutex_lock( &s_mutex );
+}
 
+int unlock( void ){
+    return pthread_mutex_unlock( &s_mutex );
+}
+
+INT32_T fdsock = -1;
 static void * deal_charing_manage_discover_event( void * args ){
 	pthread_detach( pthread_self() );
-    dzlog_info( "DISCOVER ÊØ»¤½ø³Ì¿ªÆôÍ¨Ñ¶Í¨µÀ, ¿ªÊ¼¼àÌıDISCOVER ÏûÏ¢" );
+    info( "DISCOVER å®ˆæŠ¤è¿›ç¨‹å¼€å¯é€šè®¯é€šé“, å¼€å§‹ç›‘å¬DISCOVER æ¶ˆæ¯" );   
     int sock;
-    if( ( sock = svr_open_discover_msg_channel( CHARING_MANAGE_DISCOVER_SERVICE_PORT ) ) < 0 ){
-        printf( "´´½¨DISCOVERÊØ»¤½ø³ÌµÄ½ÓÊÕSOCKETÊ§°Ü. ´íÎóÂë:%d\n", sock );
+    if( ( sock = charing_open_discover_msg_channel( CHARING_MANAGE_DISCOVER_SERVICE_PORT ) ) < 0 ){
+        printf( "åˆ›å»ºDISCOVERå®ˆæŠ¤è¿›ç¨‹çš„æ¥æ”¶SOCKETå¤±è´¥. é”™è¯¯ç :%d\n", sock );
         return NULL;
     }
+        
+    fdsock = -1;
+    fdsock = charing_open_custom_msg_channel( AGAIN_CHARING_MANAGE_DISCOVER_SERVICE_PORT, "eth0" );
+    if( fdsock <= 0 ){
+		warn( "failed to charing_open_custom_msg_channel" );
+        return -1;
+    }
 
-    int fdsock = -1;
-    fdsock = svr_open_custom_msg_channel( AGAIN_CHARING_MANAGE_DISCOVER_SERVICE_PORT, "eth0" );
+    return -1;
+
+
     while( 1 ){
         deal_data_from_charing_discover_msg_channel( sock, fdsock, deal_discover_scan_message );
     }
 
-    close_discover_msg_channel( sock );    
+    charing_close_mbarsys_msg_channel( sock );    
 }
 
 #define DISCOVER_KEYWORD 0xab
-int deal_data_from_charing_discover_msg_channel( int sock, int fd, TRLV_MESSAGE_CB cb  ){
+int deal_data_from_charing_discover_msg_channel( int sock, int fd, CHARINGMANAGE_MESSAGE_DEAL_CB cb  ){
     if( ( NULL == cb ) || ( sock < 0 ) )
         return -1;
 
@@ -71,24 +95,23 @@ int deal_data_from_charing_discover_msg_channel( int sock, int fd, TRLV_MESSAGE_
     char ipaddr[ 64 ] = { '\0' };
     void * rcvmsgdata = NULL;
     char * replyinfo = NULL;
-    
-    
+        
     retcode = receive_data_from_discover_msg_channel( sock, &keyword, &rcvmsgdata, &rcvmsglen, ipaddr, sizeof( ipaddr ), &port, 0 );
     if( retcode < 0 )
         return retcode;
     if( ( keyword & 0xff ) != DISCOVER_KEYWORD ){
         warn( "0x%x VS 0x%x", keyword, DISCOVER_KEYWORD );
-        warn( "ÎŞĞ§µÄDISCOVER »ØÓ¦ÏûÏ¢, ¹Ø¼ü×Ö0x%02xÓĞÎó", keyword & 0xff );
+        warn( "æ— æ•ˆçš„DISCOVER å›åº”æ¶ˆæ¯, å…³é”®å­—0x%02xæœ‰è¯¯", keyword & 0xff );
         safe_free( rcvmsgdata );
         return -1;
     }
 
-    info( "½ÓÊÕÀ´×ÔÓÚ%s(%d)µÄDISCOVERÏûÏ¢,ÏûÏ¢Ìå³¤¶È(%d)\n", ipaddr, port, rcvmsglen );
+    info( "æ¥æ”¶æ¥è‡ªäº%s(%d)çš„DISCOVERæ¶ˆæ¯,æ¶ˆæ¯ä½“é•¿åº¦(%d)\n", ipaddr, port, rcvmsglen );
     void * replymsgdata = NULL;
     int replymsglen = 0;
-    retcode = cb( DISCOVER_MESSAGE_TYPE_FOUND_STATION, rcvmsgdata, rcvmsglen, &replymsgdata, &replymsglen );
+    retcode = cb( 0, NULL, DISCOVER_MESSAGE_TYPE_FOUND_STATION, rcvmsgdata, rcvmsglen, &replymsgdata, &replymsglen );
     if( retcode ){
-        warn( "´¦ÀíÏûÏ¢Ê§°Ü,²»»ØÓ¦¶Ô¶Ë. ´íÎóÂë: %d\n", retcode  );
+        warn( "å¤„ç†æ¶ˆæ¯å¤±è´¥,ä¸å›åº”å¯¹ç«¯. é”™è¯¯ç : %d\n", retcode  );
         return retcode;
     }
     
@@ -98,7 +121,7 @@ int deal_data_from_charing_discover_msg_channel( int sock, int fd, TRLV_MESSAGE_
         retcode = send_data_to_discover_msg_channel( fd, keyword, replymsgdata, replymsglen, ipaddr, port );
     }
 
-    info( "»ØÓ¦ÏûÏ¢µ½%s(%d), ÏûÏ¢Ìå³¤¶È(%d)", ipaddr, port, replymsglen );    
+    info( "å›åº”æ¶ˆæ¯åˆ°%s(%d), æ¶ˆæ¯ä½“é•¿åº¦(%d)", ipaddr, port, replymsglen );    
     safe_free( rcvmsgdata );
     safe_free( replymsgdata );    
     if( retcode < 0 )
@@ -106,7 +129,7 @@ int deal_data_from_charing_discover_msg_channel( int sock, int fd, TRLV_MESSAGE_
     return retcode;
 }
 
-int deal_discover_scan_message( int msgtype, void * rcvmsgdata, int rcvmsglen, void ** replymsgdata, int * replymsglen ){
+int deal_discover_scan_message( int sock, char * ipaddr, int msgtype, void * rcvmsgdata, int rcvmsglen, void ** replymsgdata, int * replymsglen ){
     int retcode = -1;
     char * replyinfo = DISCOVER_CHARING_SERVER_REPLY_STRING;
     switch( msgtype ){
@@ -116,7 +139,7 @@ int deal_discover_scan_message( int msgtype, void * rcvmsgdata, int rcvmsglen, v
                 if( safe_memcmp( rcvmsgdata, DISCOVER_CHARING_REQUEST_STRING, rcvmsglen ) == 0 ){
                     char * replymsg = NULL;
                     if( NULL == ( replymsg = safe_strdup( replyinfo ) ) ){
-                        printf( "¸´ÖÆÓ¦´ğ×Ö·û´®(%s)³ö´í.´íÎóÔ­Òò: %s\n", replyinfo, strerror( errno ) );
+                        printf( "å¤åˆ¶åº”ç­”å­—ç¬¦ä¸²(%s)å‡ºé”™.é”™è¯¯åŸå› : %s\n", replyinfo, strerror( errno ) );
                     }else{
                         *replymsgdata = replymsg;
                         *replymsglen = strlen( replyinfo );
@@ -144,25 +167,21 @@ int start_charing_manage_discover_monitor_task(){
     return 0;
 }
 
-
-
 int start_charing_heart( void ){
     pthread_t pid;
     if( pthread_create( &pid, NULL, deal_charing_manage_heart_event, NULL ) < 0 ){
-        dzlog_warn( "Æô¶¯ĞÄÌø°ü³ö´í!" );
+        info( "å¯åŠ¨å¿ƒè·³åŒ…å‡ºé”™!" );
         return -1;
     }
     
     return 0;
 }
 
-
-
 void * deal_charing_manage_heart_event( void * args ){
-	info( "ĞÄÌø¼ì²âÏß³ÌÒÑ¿ªÆô" );
-	while(1){	
-		check_charing_handler(); //ĞÄÌø¼ì²â´¦Àíº¯Êı		
-		sleep(10); //¶¨Ê±10Ãë
+	info( "å¿ƒè·³æ£€æµ‹çº¿ç¨‹å·²å¼€å¯" );
+	while( 1 ){	
+		check_charing_handler(); //å¿ƒè·³æ£€æµ‹å¤„ç†å‡½æ•°		
+		sleep(10); //å®šæ—¶10ç§’
 	}
 	
 	return NULL;
@@ -171,30 +190,30 @@ void * deal_charing_manage_heart_event( void * args ){
 
 void check_charing_handler( void ){
     if( NULL == s_heart_information_list ){
-        warn( "Î´¼ì²âµ½×¢²áºĞ×ÓÁĞ±í" );
+        warn( "æœªæ£€æµ‹åˆ°æ³¨å†Œç›’å­åˆ—è¡¨" );
         return;
     }
 
     lock();
-    //dzlog_debug( "ĞÄÌø²éÑ¯:" );
-    //dzlog_debug( "========================================================" );
+    //info( "å¿ƒè·³æŸ¥è¯¢:" );
+    //info( "========================================================" );
     HEART_INFO_T *ppNode = s_heart_information_list;
 	while( ppNode ){
 
 	    if( ppNode->count == 6 ){
 	        
-			dzlog_warn( "ĞÄÌøÒÑ6´Î£¬¿Í»§¶ËIP(%s),ÓÃ»§(%s) ÒÑ¾­µôÏß!", ppNode->peerip, ppNode->name );
-            safe_message_node( ppNode->name );
-            dzlog_debug( "Íê³ÉÁ¬½ÓÁ´±íĞ¶ÔØ(%s)!", ppNode->name );            
-            safe_heart_node( ppNode->name );
-            dzlog_debug( "Íê³ÉĞÄÌø°üÁ¬½ÓĞ¶ÔØ(%s)!", ppNode->name );
+			info( "å¿ƒè·³å·²6æ¬¡ï¼Œå®¢æˆ·ç«¯IP(%s),ç”¨æˆ·(%s) å·²ç»æ‰çº¿!", ppNode->ipaddr, ppNode->hostname );
+            //safe_message_node( ppNode->ipaddr );
+            info( "å®Œæˆè¿æ¥é“¾è¡¨å¸è½½(%s)!", ppNode->hostname );            
+            safe_heart_node( ppNode->hostname );
+            info( "å®Œæˆå¿ƒè·³åŒ…è¿æ¥å¸è½½(%s)!", ppNode->hostname );
 		}else if( ppNode->count > 0 ){		
-            //dzlog_warn("¿Í»§¶ËIP(%s),ÓÃ»§(%s) ³öÏÖÒì³£!", ppNode->peerip,ppNode->name );
+            //info("å®¢æˆ·ç«¯IP(%s),ç”¨æˆ·(%s) å‡ºç°å¼‚å¸¸!", ppNode->peerip,ppNode->name );
 		    ppNode->count ++;
-		    //dzlog_debug("count(%d)", ppNode->count);//²é¿´¼ÆÊıÆ÷ÄÚÈİ
+		    //info("count(%d)", ppNode->count);//æŸ¥çœ‹è®¡æ•°å™¨å†…å®¹
 	    }else if( ppNode->count == 0 ){
 		    ppNode->count++;
-		    //dzlog_debug("count(%d)", ppNode->count);//²é¿´¼ÆÊıÆ÷ÄÚÈİ
+		    //info("count(%d)", ppNode->count);//æŸ¥çœ‹è®¡æ•°å™¨å†…å®¹
 	    }
 	    
 	    ppNode = ppNode->next;
@@ -231,13 +250,13 @@ HEART_INFO_T * create_heart_information_list_node_ext( int fd, char * hostname, 
     if( strlen( hostname ) + 1 < sizeof( node->hostname ) ){
         memcpy( node->hostname, hostname , strlen( hostname ) + 1 );        
     }else{
-        info( "hostname(%s)  ±£´æÖµ¹ı´ó(%d)", node->hostname, strlen( hostname ) );
+        info( "hostname(%s)  ä¿å­˜å€¼è¿‡å¤§(%ld)", node->hostname, strlen( hostname ) );
     }
 
-    if( strlen( ipaddr ) + 1 < sizeof( node->peerip ) ){
-        memcpy( node->peerip, ipaddr , strlen( ipaddr ) + 1 );
+    if( strlen( ipaddr ) + 1 < sizeof( node->ipaddr ) ){
+        memcpy( node->ipaddr, ipaddr , strlen( ipaddr ) + 1 );
     }else{
-        dzlog_warn( "ipaddr(%s)  ±£´æÖµ¹ı´ó   (%d)", ipaddr, strlen( ipaddr ) );
+        info( "ipaddr(%s)  ä¿å­˜å€¼è¿‡å¤§(%ld)", ipaddr, strlen( ipaddr ) );
     }
 
     node->sockfd = fd;
@@ -270,22 +289,22 @@ void add_node_into_heart_information_list( HEART_INFO_T ** list, HEART_INFO_T * 
 }
 
 int update_register_information_in_heart_information_node( HEART_INFO_T * node, int fd, char * hostname, char * ipaddr ){
-    if( ( NULL == node ) || ( NULL == uuid ) || ( NULL == ipaddr ) )
+    if( ( NULL == node ) || ( NULL == hostname ) || ( NULL == ipaddr ) )
         return -1;
 
-    HEART_INFO_T * info = node;
-    if( info ){    
-        if( safe_strcmp( info->hostname, hostname ) == 0 ){
-            if( strlen( hostname ) + 1 < sizeof( info->hostname ) ){
-                memcpy( info->hostname, hostname , strlen( hostname ) + 1 );        
+    HEART_INFO_T * pinfo = node;
+    if( pinfo ){    
+        if( safe_strcmp( pinfo->hostname, hostname ) == 0 ){
+            if( strlen( hostname ) + 1 < sizeof( pinfo->hostname ) ){
+                memcpy( pinfo->hostname, hostname , strlen( hostname ) + 1 );        
             }else{
-                dzlog_warn( "uuid ±£´æÖµ¹ı´ó(%ld)", strlen( uuid ) );
+                info( "uuid ä¿å­˜å€¼è¿‡å¤§(%ld)", strlen( hostname ) );
             }
             
-            if( strlen( ipaddr ) + 1 < sizeof( info->peerip ) ){            
-                memcpy( info->peerip, ipaddr , strlen( ipaddr ) + 1 );
+            if( strlen( ipaddr ) + 1 < sizeof( pinfo->ipaddr ) ){            
+                memcpy( pinfo->ipaddr, ipaddr , strlen( ipaddr ) + 1 );
             }else{
-                dzlog_warn( "ipaddr ±£´æÖµ¹ı´ó(%ld)", strlen( ipaddr ) );
+                info( "ipaddr ä¿å­˜å€¼è¿‡å¤§(%ld)", strlen( ipaddr ) );
             }
             
             node->sockfd = fd;
@@ -297,15 +316,14 @@ int update_register_information_in_heart_information_node( HEART_INFO_T * node, 
     return -1;
 }
 
-
-
 int registration_hostname( int sock, char * hostname, char * ipaddr ){
 
-    info( " ÕıÔÚ×¢²á¼Æ·Ñ³ÌĞò,Ö÷»úÃû(%s) ĞÅÏ¢", hostname );
+    int retcode = 0;
+    info( " æ­£åœ¨æ³¨å†Œè®¡è´¹ç¨‹åº,ä¸»æœºå(%s) ä¿¡æ¯", hostname );
     lock();
-    info( " µÇ¼ÇÖ÷»úÃû(%s)  ĞÅÏ¢", hostname );    
-    info( " »ñÈ¡Ö÷»úÃû( %s ) IP µØÖ·Îª( %s )", hostname, ipaddr );
-    info( " Ö÷»úÃû( %s )  ×¢²áĞÄÌø°üĞÅÏ¢", hostname );
+    info( " ç™»è®°ä¸»æœºå(%s)  ä¿¡æ¯", hostname );    
+    info( " è·å–ä¸»æœºå( %s ) IP åœ°å€ä¸º( %s )", hostname, ipaddr );
+    info( " ä¸»æœºå( %s )  æ³¨å†Œå¿ƒè·³åŒ…ä¿¡æ¯", hostname );
     HEART_INFO_T  *heart_node = NULL;
     if( NULL == ( heart_node = found_node_from_heart_information_list_by_uuid( s_heart_information_list, hostname ) ) ){
         if( NULL == ( heart_node = create_heart_information_list_node_ext( sock, hostname, ipaddr ) ) ){
@@ -319,6 +337,37 @@ int registration_hostname( int sock, char * hostname, char * ipaddr ){
 
     //manually_player_status( uuid );
     unlock();
-    info( "¹§Ï²! Ö÷»úÃû( %s ) ×¢²áÒÑÍê±Ï!", hostname );  
-    return 0;
+    info( "æ­å–œ! ä¸»æœºå( %s ) æ³¨å†Œå·²å®Œæ¯•!", hostname );  
+    return retcode;
+}
+
+void safe_heart_node( char * hostname  ){
+    delete_node_from_heart_information_list_by_fd( &s_heart_information_list, hostname );    
+}
+
+void delete_node_from_heart_information_list_by_fd( HEART_INFO_T ** list, char * hostname ){
+    if( NULL == list ) {
+        return;
+    }
+    
+    HEART_INFO_T * listnode = *list;
+    HEART_INFO_T * prevnode = NULL;
+    while( listnode ){
+        
+        HEART_INFO_T * nextnode = listnode->next;
+        if( safe_strcmp( listnode->hostname, hostname ) == 0 ){
+            if( NULL == prevnode ){
+                *list = nextnode;
+            }
+            else{
+                prevnode->next = nextnode;
+            }
+            
+            free( listnode );            
+            return;
+        }
+		
+        prevnode = listnode;
+        listnode = nextnode;
+    }    
 }

@@ -3,15 +3,6 @@
 
 
 
-static pthread_mutex_t s_mutex = PTHREAD_MUTEX_INITIALIZER;
-int lock( VOID ){
-    return pthread_mutex_lock( &s_mutex );
-}
-
-int unlock( VOID ){
-    return pthread_mutex_unlock( &s_mutex );
-}
-
 typedef struct session{
 	int sockfd;
 	int count;
@@ -22,6 +13,8 @@ typedef struct session{
     struct session *next;
 }HEART_INFO_T; 
 
+int lock( void );
+int unlock( void );
 
 int start_charing_heart( void );
 int start_charing_manage_discover_monitor_task();

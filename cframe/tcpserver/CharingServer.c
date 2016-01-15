@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <signal.h>
 
+#include "zlog.h"
+
 #ifdef OPENZLOG
 	#define info    dzlog_info	
 	#define warn    dzlog_warn
@@ -26,23 +28,26 @@ int main( int argc, char ** argv ){
     int retcode = 0;
     char zlogcfg[ 512 ] = { '\0' };
     sprintf( zlogcfg, "%s%s", ZLOG_BASIC_PATH, ZLOG_BASIC_PATH );	
-    // ³õÊ¼»¯zlog
+    // åˆå§‹åŒ–zlog
     retcode = dzlog_init( zlogcfg, ZLOG_CHARING_CATEGROY );
     if( retcode ){
-	    printf( "[%s][%d]  ÈÕÖ¾Æô¶¯Ê§°Ü! ´íÎóÂë:%d, Çë¼ì²éÅäÖÃÎÄ¼ş%s ÊÇ·ñÕıÈ·!\n", __FUNCTION__,__LINE__, retcode, zlogcfg );
+	    printf( "[%s][%d]  æ—¥å¿—å¯åŠ¨å¤±è´¥! é”™è¯¯ç :%d, è¯·æ£€æŸ¥é…ç½®æ–‡ä»¶%s æ˜¯å¦æ­£ç¡®!\n", __FUNCTION__,__LINE__, retcode, zlogcfg );
     }
     
-    // ºöÂÔÏµÍ³¶ÔSIGPIPE µÄÄ¬ÈÏ´¦ÀíÊÇÉ±ËÀÕâ¸ö½ø³Ì´¦Àí
+    // å¿½ç•¥ç³»ç»Ÿå¯¹SIGPIPE çš„é»˜è®¤å¤„ç†æ˜¯æ€æ­»è¿™ä¸ªè¿›ç¨‹å¤„ç†
     signal( SIGPIPE, SIG_IGN );
-    info( "½«½ø³Ì×ªÎªºóÌ¨ÊØ»¤½ø³Ì" );
-    goto_daemon( 0, 0 );
+    info( "å°†è¿›ç¨‹è½¬ä¸ºåå°å®ˆæŠ¤è¿›ç¨‹\n" );
+    //goto_daemon( 0, 0 );
     start_charing_manage_discover_monitor_task();
-    info( "Æô¶¯ĞÄÌø°ü¼à¿ØÈÎÎñ" );    
-    start_charing_heart();
-	info( "½ÓÊÕ²¢´¦Àí²¥·Å»ú·¢À´µÄÇëÇóÏûÏ¢" );
+
+    info( "å¯åŠ¨å¿ƒè·³åŒ…ç›‘æ§ä»»åŠ¡\n" );    
+    //start_charing_heart();
+
+    info( "æ¥æ”¶hdplayermange æœåŠ¡å™¨è¯·æ±‚æ¶ˆæ¯\n" );
+    //start_receive_deal_hdplayer_manage_message();
+    
+	info( "æ¥æ”¶å¹¶å¤„ç†æ’­æ”¾æœºå‘æ¥çš„è¯·æ±‚æ¶ˆæ¯\n" );
     start_receive_deal_charing_manage_message();
-    info( "½ÓÊÕhdplayermange ·şÎñÆ÷ÇëÇóÏûÏ¢" );
-    start_receive_deal_hdplayer_manage_message();
     
 	return 0;   
 }
